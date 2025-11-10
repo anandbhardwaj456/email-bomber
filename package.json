@@ -1,0 +1,20 @@
+{
+  "name": "email-automation-platform",
+  "version": "1.0.0",
+  "description": "Bulk email automation platform with zero-error guarantee",
+  "main": "server.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd backend && npm run dev",
+    "client": "cd frontend && npm start",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "setup-env": "node setup-env-all.js"
+  },
+  "keywords": ["email", "automation", "bulk", "mern"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+

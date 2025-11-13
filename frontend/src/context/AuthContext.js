@@ -12,7 +12,7 @@ export const useAuth = () => {
   return context;
 };
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://email-bomber-dpyk.onrender.com';
+const API_URL = process.env.REACT_APP_API_URL || 'https://email-bomber-dpyk.onrender.com/api';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);

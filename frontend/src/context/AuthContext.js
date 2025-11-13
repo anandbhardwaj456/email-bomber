@@ -12,7 +12,8 @@ export const useAuth = () => {
   return context;
 };
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://email-bomber-dpyk.onrender.com/api';
+// Fix: Ensure API_URL has no trailing slash
+const API_URL = (process.env.REACT_APP_API_URL || 'https://email-bomber-dpyk.onrender.com/api').replace(/\/$/, '');
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -91,4 +92,3 @@ export const AuthProvider = ({ children }) => {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-

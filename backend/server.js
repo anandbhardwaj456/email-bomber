@@ -41,11 +41,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB Connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/email_automation', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+// MongoDB Connection (no deprecated driver options)
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/email_automation')
 .then(() => console.log('✅ MongoDB Connected'))
 .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
@@ -67,6 +64,7 @@ app.use('/api/campaigns', require('./routes/campaigns'));
 app.use('/api/jobs', require('./routes/jobs'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/upload', require('./routes/upload'));
+app.use('/api/email', require('./routes/email'));
 
 // Health check
 app.get('/api/health', (req, res) => {

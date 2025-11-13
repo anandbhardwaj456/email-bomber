@@ -1,5 +1,7 @@
-const mailgun = require('mailgun-js');
+const Brevo = require('@getbrevo/brevo');
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
 
 // Simple logger (console only)
 const logger = {
@@ -16,41 +18,25 @@ class EmailService {
   }
 
   initializeProviders() {
-    // Primary Mailgun
-    if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+    // Primary Brevo
+    if (process.env.BREVO_API_KEY) {
       this.providers.push({
-        name: 'mailgun',
-        instance: mailgun({
-          apiKey: process.env.MAILGUN_API_KEY,
-          domain: process.env.MAILGUN_DOMAIN
-        }),
+        name: 'brevo',
+        instance: this.createBrevoClient(process.env.BREVO_API_KEY),
         priority: 1
       });
     }
 
-    // Backup Mailgun
-    if (process.env.MAILGUN_API_KEY_BACKUP && process.env.MAILGUN_DOMAIN_BACKUP) {
+    // Backup Brevo
+    if (process.env.BREVO_API_KEY_BACKUP) {
       this.providers.push({
-        name: 'mailgun-backup',
-        instance: mailgun({
-          apiKey: process.env.MAILGUN_API_KEY_BACKUP,
-          domain: process.env.MAILGUN_DOMAIN_BACKUP
-        }),
+        name: 'brevo-backup',
+        instance: this.createBrevoClient(process.env.BREVO_API_KEY_BACKUP),
         priority: 2
       });
     }
 
-    // SendGrid (if configured)
-    if (process.env.SENDGRID_API_KEY) {
-      // SendGrid would require @sendgrid/mail package
-      this.providers.push({
-        name: 'sendgrid',
-        instance: null, // Would initialize SendGrid client here
-        priority: 3
-      });
-    }
-
-    // SMTP Fallback
+    // SMTP Fallback (with pooling for high throughput)
     if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -59,13 +45,20 @@ class EmailService {
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS
-        }
+        },
+        // Performance settings
+        pool: true,
+        maxConnections: parseInt(process.env.SMTP_MAX_CONNECTIONS || '10'),
+        maxMessages: parseInt(process.env.SMTP_MAX_MESSAGES || '100'),
+        // Optional soft rate limiting for providers that require it
+        rateDelta: parseInt(process.env.SMTP_RATE_DELTA || '1000'), // window in ms
+        rateLimit: parseInt(process.env.SMTP_RATE_LIMIT || '100')   // msgs per window
       });
 
       this.providers.push({
         name: 'smtp',
         instance: transporter,
-        priority: 4
+        priority: 3
       });
     }
 
@@ -84,29 +77,95 @@ class EmailService {
     return provider;
   }
 
-  async sendWithMailgun(mailgunInstance, emailData) {
-    return new Promise((resolve, reject) => {
-      const data = {
-        from: emailData.from,
-        to: emailData.to,
-        subject: emailData.subject,
-        text: emailData.text,
-        html: emailData.html,
-        'h:Reply-To': emailData.replyTo || emailData.from
+  createBrevoClient(apiKey) {
+    const apiInstance = new Brevo.TransactionalEmailsApi();
+    apiInstance.setApiKey(
+      Brevo.TransactionalEmailsApiApiKeys.apiKey,
+      apiKey
+    );
+    return apiInstance;
+  }  
+
+  parseEmailAddress(address, fallbackName) {
+    if (!address) {
+      throw new Error('Email address is required');
+    }
+
+    if (typeof address === 'object' && address.email) {
+      return {
+        email: address.email,
+        name: address.name || fallbackName || undefined
       };
+    }
 
-      if (emailData.attachments && emailData.attachments.length > 0) {
-        data.attachment = emailData.attachments.map(att => att.path);
-      }
+    const addressStr = String(address);
+    const match = addressStr.match(/^(.*)<(.+)>$/);
+    if (match) {
+      const name = match[1].trim();
+      const email = match[2].trim();
+      return {
+        email,
+        name: fallbackName || (name.length > 0 ? name : undefined)
+      };
+    }
 
-      mailgunInstance.messages().send(data, (error, body) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(body);
-        }
-      });
+    return {
+      email: addressStr.trim(),
+      name: fallbackName || undefined
+    };
+  }
+
+  async sendWithBrevo(brevoClient, emailData) {
+    const sendEmail = new Brevo.SendSmtpEmail();
+
+    const fromParsed = this.parseEmailAddress(emailData.from, emailData.fromName);
+    sendEmail.sender = {
+      email: fromParsed.email,
+      name: fromParsed.name
+    };
+
+    const recipients = Array.isArray(emailData.to) ? emailData.to : [emailData.to];
+    sendEmail.to = recipients.map((recipient) => {
+      const parsed = this.parseEmailAddress(recipient);
+      return {
+        email: parsed.email,
+        name: parsed.name
+      };
     });
+
+    sendEmail.subject = emailData.subject;
+
+    if (emailData.html) {
+      sendEmail.htmlContent = emailData.html;
+    }
+
+    if (emailData.text) {
+      sendEmail.textContent = emailData.text;
+    }
+
+    const replyToAddress = emailData.replyTo || fromParsed.email;
+    if (replyToAddress) {
+      const parsedReply = this.parseEmailAddress(replyToAddress);
+      sendEmail.replyTo = {
+        email: parsedReply.email,
+        name: parsedReply.name
+      };
+    }
+
+    if (emailData.attachments && emailData.attachments.length > 0) {
+      sendEmail.attachment = await Promise.all(
+        emailData.attachments.map(async (att) => {
+          const filePath = att.path;
+          const buffer = await fs.promises.readFile(filePath);
+          return {
+            name: att.filename || path.basename(filePath),
+            content: buffer.toString('base64')
+          };
+        })
+      );
+    }
+
+    return await brevoClient.sendTransacEmail(sendEmail);
   }
 
   async sendWithSMTP(transporter, emailData) {
@@ -138,13 +197,10 @@ class EmailService {
         try {
           let result;
 
-          if (provider.name === 'mailgun' || provider.name === 'mailgun-backup') {
-            result = await this.sendWithMailgun(provider.instance, emailData);
+          if (provider.name === 'brevo' || provider.name === 'brevo-backup') {
+            result = await this.sendWithBrevo(provider.instance, emailData);
           } else if (provider.name === 'smtp') {
             result = await this.sendWithSMTP(provider.instance, emailData);
-          } else if (provider.name === 'sendgrid') {
-            // SendGrid implementation would go here
-            throw new Error('SendGrid not yet implemented');
           }
 
           logger.info(`Email sent successfully via ${provider.name}`, {
@@ -156,7 +212,7 @@ class EmailService {
           return {
             success: true,
             provider: provider.name,
-            messageId: result.id || result.message || 'unknown',
+            messageId: result?.messageId || result?.messageIds?.[0] || 'unknown',
             result
           };
         } catch (error) {

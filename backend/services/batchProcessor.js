@@ -1,6 +1,13 @@
 const Contact = require('../models/Contact');
 const Job = require('../models/Job');
+const Campaign = require('../models/Campaign');
+const Analytics = require('../models/Analytics');
+const emailService = require('./emailService');
 const { emailQueue } = require('./queueService');
+
+// Configurable sync fallback performance knobs (safe defaults)
+const SYNC_SEND_CONCURRENCY = parseInt(process.env.SYNC_SEND_CONCURRENCY || '10');
+const SYNC_SEND_RETRIES = parseInt(process.env.SYNC_SEND_RETRIES || process.env.EMAIL_SEND_RETRIES_SYNC || '1');
 
 class BatchProcessor {
   constructor() {
@@ -69,25 +76,167 @@ class BatchProcessor {
     const jobs = [];
 
     for (const batch of batches) {
-      const job = await emailQueue.add('send-batch', {
-        jobId: batch.jobId,
-        campaignId,
-        userId,
-        contacts: batch.contacts,
-        campaignData
-      }, {
-        priority: 1,
-        attempts: 1
-      });
+      try {
+        const job = await emailQueue.add('send-batch', {
+          jobId: batch.jobId,
+          campaignId,
+          userId,
+          contacts: batch.contacts,
+          campaignData
+        }, {
+          priority: 1,
+          attempts: 1
+        });
 
-      jobs.push({
-        jobId: batch.jobId,
-        queueJobId: job.id,
-        batchNumber: batch.batchNumber
-      });
+        jobs.push({
+          jobId: batch.jobId,
+          queueJobId: job.id,
+          batchNumber: batch.batchNumber
+        });
+      } catch (err) {
+        // Fallback: process this batch synchronously if queueing fails (e.g., Redis down)
+        await this.processBatchSynchronously(batch, campaignId, userId, campaignData);
+        jobs.push({
+          jobId: batch.jobId,
+          queueJobId: null,
+          batchNumber: batch.batchNumber
+        });
+      }
     }
 
     return jobs;
+  }
+
+  async processBatchSynchronously(batch, campaignId, userId, campaignData) {
+    const { jobId, contacts } = batch;
+    // Mark job processing
+    await Job.updateOne({ _id: jobId }, {
+      status: 'processing',
+      startedAt: new Date()
+    });
+
+    const totalContacts = contacts.length;
+
+    // Process contacts in parallel chunks for speed, with safe concurrency
+    for (let i = 0; i < contacts.length; i += SYNC_SEND_CONCURRENCY) {
+      const slice = contacts.slice(i, i + SYNC_SEND_CONCURRENCY);
+      await Promise.all(slice.map(async (contact) => {
+        const emailData = {
+          from: `${campaignData.fromName} <${campaignData.fromEmail}>`,
+          to: contact.email,
+          subject: campaignData.subject,
+          text: campaignData.body,
+          html: campaignData.bodyHtml || campaignData.body,
+          replyTo: campaignData.replyTo || campaignData.fromEmail,
+          attachments: campaignData.attachments || []
+        };
+
+        const result = await emailService.sendEmail(emailData, SYNC_SEND_RETRIES);
+
+        if (result.success) {
+          await Job.updateOne(
+            { _id: jobId },
+            {
+              $inc: { 'progress.sent': 1 },
+              $set: { 'progress.total': totalContacts }
+            }
+          );
+
+          // Record analytics similar to queue path
+          try {
+            await Analytics.create({
+              campaignId,
+              userId,
+              contactId: contact.contactId,
+              email: emailData.to,
+              event: 'sent',
+              provider: result.provider,
+              metadata: { messageId: result.messageId, sync: true }
+            });
+          } catch (_) {}
+        } else {
+          await Job.updateOne(
+            { _id: jobId },
+            {
+              $inc: { 'progress.failed': 1 },
+              $push: {
+                errorLog: {
+                  email: emailData.to,
+                  error: result.error,
+                  retryCount: 0
+                }
+              }
+            }
+          );
+
+          try {
+            await Analytics.create({
+              campaignId,
+              userId,
+              contactId: contact.contactId,
+              email: emailData.to,
+              event: 'failed',
+              metadata: { error: result.error, attempts: result.attempts, sync: true }
+            });
+          } catch (_) {}
+        }
+      }));
+    }
+
+    // Finalize job and update campaign stats
+    const updatedJob = await Job.findById(jobId);
+    const sentCount = updatedJob.progress.sent;
+    const failedCount = updatedJob.progress.failed;
+
+    await Job.updateOne({ _id: jobId }, {
+      status: 'completed',
+      completedAt: new Date()
+    });
+
+    await Campaign.updateOne(
+      { _id: campaignId },
+      {
+        $inc: {
+          'stats.sent': sentCount,
+          'stats.failed': failedCount
+        },
+        $set: {
+          'stats.total': totalContacts
+        }
+      }
+    );
+
+    // Emit events if socket is available
+    try {
+      const io = global.io;
+      if (io) {
+        io.to(`campaign-${campaignId}`).emit('batch-completed', {
+          campaignId,
+          jobId,
+          sent: sentCount,
+          failed: failedCount
+        });
+      }
+    } catch (_) {}
+
+    // If this was the last pending/processing job, mark campaign completed
+    const remaining = await Job.countDocuments({
+      campaignId,
+      status: { $in: ['pending', 'processing'] }
+    });
+    if (remaining === 0) {
+      await Campaign.updateOne(
+        { _id: campaignId },
+        { $set: { status: 'completed', completedAt: new Date() } }
+      );
+
+      try {
+        const io = global.io;
+        if (io) {
+          io.to(`campaign-${campaignId}`).emit('campaign-completed', { campaignId });
+        }
+      } catch (_) {}
+    }
   }
 
   async getBatchStatus(jobId) {

@@ -25,7 +25,7 @@ const analyticsSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['mailgun', 'mailgun-backup', 'sendgrid', 'smtp']
+    enum: ['brevo', 'brevo-backup', 'smtp']
   },
   metadata: {
     type: Map,

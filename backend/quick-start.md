@@ -40,16 +40,14 @@ MONGODB_URI=mongodb://localhost:27017/email_automation
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/email_automation
 ```
 
-### 2. Mailgun API (REQUIRED for sending emails)
+### 2. Brevo API (REQUIRED for sending emails)
 
-1. Sign up at https://www.mailgun.com/
-2. Verify your domain (or use sandbox domain for testing)
-3. Get API key from Dashboard → Settings → API Keys
-4. Get domain from Dashboard → Sending → Domains
-5. Update `.env`:
+1. Sign up at https://www.brevo.com/
+2. Verify and warm up your sending domain
+3. Generate an API key from the Brevo dashboard
+4. Update `.env`:
 ```env
-MAILGUN_API_KEY=your_actual_api_key_here
-MAILGUN_DOMAIN=your_domain_or_sandbox.mailgun.org
+BREVO_API_KEY=your_actual_api_key_here
 ```
 
 ### 3. Redis (Required for queue system)
@@ -71,9 +69,8 @@ REDIS_PASSWORD=your_redis_password
 ### 4. Optional: Backup Email Providers
 
 For failover protection, you can add:
-- **SendGrid**: Get API key from https://sendgrid.com/
 - **SMTP**: Configure SMTP settings (Gmail, etc.)
-- **Backup Mailgun**: Second Mailgun account
+- **Backup Brevo key**: Add a second Brevo API key
 
 ## Testing Your Setup
 
@@ -118,9 +115,9 @@ For failover protection, you can add:
 - Verify host and port
 - Check password (if using Redis Cloud)
 
-### Mailgun Error
+### Brevo Error
 - Verify API key is correct
-- Check domain is verified
+- Check domain is verified and warmed up
 - Make sure you're not in sandbox mode (or use sandbox domain)
 
 ## Need Help?

@@ -35,8 +35,8 @@ const jobSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['mailgun', 'mailgun-backup', 'sendgrid', 'smtp'],
-    default: 'mailgun'
+    enum: ['brevo', 'brevo-backup', 'smtp'],
+    default: 'brevo'
   },
   errorLog: [{
     email: String,

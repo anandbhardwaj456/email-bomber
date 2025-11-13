@@ -24,13 +24,10 @@
    
    - `JWT_SECRET` - A random secret string for JWT tokens (generate a strong random string)
    
-   - `MAILGUN_API_KEY` - Your Mailgun API key
-   - `MAILGUN_DOMAIN` - Your Mailgun domain
+   - `BREVO_API_KEY` - Your Brevo API key
    
    ### Optional Variables (for failover):
-   - `MAILGUN_API_KEY_BACKUP` - Backup Mailgun API key
-   - `MAILGUN_DOMAIN_BACKUP` - Backup Mailgun domain
-   - `SENDGRID_API_KEY` - SendGrid API key (alternative provider)
+   - `BREVO_API_KEY_BACKUP` - Backup Brevo API key
    - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` - SMTP fallback
 
    ### Redis (Required for queue system):
@@ -65,8 +62,7 @@
    PORT=5000
    MONGODB_URI=mongodb://localhost:27017/email_automation
    JWT_SECRET=your_random_secret_here
-   MAILGUN_API_KEY=your_mailgun_key
-   MAILGUN_DOMAIN=your_mailgun_domain
+   BREVO_API_KEY=your_brevo_api_key
    REDIS_HOST=localhost
    REDIS_PORT=6379
    ```
@@ -79,11 +75,10 @@
 
 ## Getting API Keys
 
-### Mailgun:
-1. Sign up at https://www.mailgun.com/
-2. Verify your domain
-3. Get API key from Dashboard → Settings → API Keys
-4. Get domain from Dashboard → Sending → Domains
+### Brevo:
+1. Sign up at https://www.brevo.com/
+2. Verify and warm up your domain
+3. Generate an API key from your Brevo dashboard
 
 ### MongoDB Atlas (Cloud):
 1. Sign up at https://www.mongodb.com/cloud/atlas

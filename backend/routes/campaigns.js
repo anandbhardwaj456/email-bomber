@@ -129,6 +129,18 @@ router.post('/:id/send', async (req, res) => {
     campaign.startedAt = new Date();
     await campaign.save();
 
+    // Notify clients that campaign sending has started
+    try {
+      const io = req.app.get('io') || global.io;
+      if (io) {
+        io.to(`campaign-${campaign._id}`).emit('campaign-started', {
+          campaignId: campaign._id,
+          status: 'sending',
+          startedAt: campaign.startedAt
+        });
+      }
+    } catch (_) {}
+
     // Create batches
     const { batches, totalContacts, totalBatches } = await batchProcessor.createBatches(
       campaign._id,
@@ -167,12 +179,22 @@ router.post('/:id/send', async (req, res) => {
     });
   } catch (error) {
     // Reset campaign status on error
-    await Campaign.updateOne(
-      { _id: req.params.id },
-      { status: 'draft' }
-    );
+    try {
+      await Campaign.updateOne(
+        { _id: req.params.id },
+        { status: 'draft' }
+      );
+    } catch (_) {}
 
-    res.status(500).json({ message: error.message });
+    // Return more specific status codes for common cases
+    const msg = (error && error.message) ? String(error.message) : 'Failed to send campaign';
+    if (msg.includes('No contacts found')) {
+      return res.status(400).json({ message: 'No contacts match the selected filters. Please add contacts or adjust filters.' });
+    }
+    if (msg.toLowerCase().includes('redis') || msg.toLowerCase().includes('queue')) {
+      return res.status(503).json({ message: 'Queue service unavailable. Ensure Redis is running and reachable.' });
+    }
+    return res.status(500).json({ message: msg });
   }
 });
 

@@ -1,7 +1,6 @@
 const Job = require('../models/Job');
 const Analytics = require('../models/Analytics');
 const emailService = require('./emailService');
-const { emailQueue } = require('./queueService');
 
 /**
  * Retry Service - Handles retrying failed emails with exponential backoff
@@ -123,6 +122,7 @@ class RetryService {
    */
   async scheduleRetries() {
     try {
+      const { emailQueue } = require('./queueService');
       const failedJobs = await Job.find({
         status: 'completed',
         'errorLog': { $exists: true, $ne: [] }

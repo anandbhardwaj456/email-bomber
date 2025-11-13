@@ -7,7 +7,7 @@ This guide covers deploying the Email Automation Platform to production.
 - Node.js 16+ installed
 - MongoDB Atlas account (or self-hosted MongoDB)
 - Redis Cloud account (or self-hosted Redis)
-- Mailgun account with API key
+- Brevo account with API key
 - Domain name (optional but recommended)
 
 ## Backend Deployment
@@ -29,8 +29,7 @@ This guide covers deploying the Email Automation Platform to production.
    REDIS_HOST=your_redis_host
    REDIS_PORT=6379
    JWT_SECRET=your_secure_jwt_secret
-   MAILGUN_API_KEY=your_mailgun_api_key
-   MAILGUN_DOMAIN=your_mailgun_domain
+   BREVO_API_KEY=your_brevo_api_key
    ```
 
 ### Option 2: AWS EC2
@@ -162,22 +161,16 @@ This guide covers deploying the Email Automation Platform to production.
 
 ## Email Provider Setup
 
-### Mailgun
+### Brevo
 
-1. **Sign up** for Mailgun account
-2. **Add and verify** your domain
-3. **Get API key** from dashboard
+1. **Sign up** for a Brevo account
+2. **Verify** and warm up your sending domain
+3. **Generate an API key** from the Brevo dashboard
 4. **Set environment variables**:
    ```
-   MAILGUN_API_KEY=your_api_key
-   MAILGUN_DOMAIN=your_domain
+   BREVO_API_KEY=your_api_key
+   BREVO_API_KEY_BACKUP=optional_second_key
    ```
-
-### SendGrid (Optional - for failover)
-
-1. **Sign up** for SendGrid
-2. **Create API key**
-3. **Set environment variable**: `SENDGRID_API_KEY=your_key`
 
 ### SMTP (Fallback)
 
@@ -267,7 +260,7 @@ This guide covers deploying the Email Automation Platform to production.
    - Verify credentials
 
 3. **Email Sending Failed**:
-   - Check Mailgun API key
+   - Check Brevo API key
    - Verify domain verification
    - Check rate limits
 

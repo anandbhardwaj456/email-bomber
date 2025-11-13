@@ -47,6 +47,14 @@ const CampaignDetail = () => {
     const socket = io(SOCKET_URL);
     socket.emit('join-campaign', id);
 
+    socket.on('campaign-started', (data) => {
+      if (data.campaignId === id) {
+        setCampaign((prev) => prev ? { ...prev, status: 'sending', startedAt: data.startedAt } : prev);
+        fetchCampaign();
+        fetchAnalytics();
+      }
+    });
+
     socket.on('email-sent', (data) => {
       if (data.campaignId === id) {
         fetchCampaign();
@@ -61,10 +69,29 @@ const CampaignDetail = () => {
       }
     });
 
+    socket.on('campaign-completed', (data) => {
+      if (data.campaignId === id) {
+        setCampaign((prev) => prev ? { ...prev, status: 'completed', completedAt: new Date().toISOString() } : prev);
+        fetchCampaign();
+        fetchAnalytics();
+      }
+    });
+
     return () => {
       socket.disconnect();
     };
   }, [fetchCampaign, fetchAnalytics, id]);
+
+  // Polling while sending to keep UI fresh even if socket events are missed
+  useEffect(() => {
+    if (campaign?.status === 'sending') {
+      const interval = setInterval(() => {
+        fetchCampaign();
+        fetchAnalytics();
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [campaign?.status, fetchCampaign, fetchAnalytics]);
 
   const handleSend = async () => {
     if (!window.confirm('Are you sure you want to send this campaign?')) {
@@ -73,6 +100,8 @@ const CampaignDetail = () => {
 
     try {
       setSending(true);
+      // Optimistically reflect sending state
+      setCampaign((prev) => prev ? { ...prev, status: 'sending' } : prev);
       await axios.post(`${API_URL}/campaigns/${id}/send`);
       toast.success('Campaign queued for sending');
       fetchCampaign();

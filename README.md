@@ -30,7 +30,7 @@ A high-performance bulk email automation platform built with MERN stack (MongoDB
 - MongoDB (Mongoose)
 - Redis + Bull (Queue System)
 - Socket.io (WebSocket)
-- Mailgun API (Primary Email Provider)
+- Brevo API (Primary Email Provider)
 - Nodemailer (SMTP Fallback)
 - JWT Authentication
 
@@ -72,16 +72,11 @@ REDIS_PORT=6379
 JWT_SECRET=your_jwt_secret_key_here
 JWT_EXPIRE=7d
 
-# Mailgun (Primary)
-MAILGUN_API_KEY=your_mailgun_api_key
-MAILGUN_DOMAIN=your_mailgun_domain
+# Brevo (Primary)
+BREVO_API_KEY=your_brevo_api_key
 
-# Mailgun Backup (for failover)
-MAILGUN_API_KEY_BACKUP=your_backup_mailgun_api_key
-MAILGUN_DOMAIN_BACKUP=your_backup_mailgun_domain
-
-# SendGrid (Alternative provider for failover)
-SENDGRID_API_KEY=your_sendgrid_api_key
+# Brevo Backup (for failover)
+BREVO_API_KEY_BACKUP=your_backup_brevo_api_key
 
 # SMTP (Fallback)
 SMTP_HOST=smtp.gmail.com
@@ -168,7 +163,7 @@ email_bomber/
 
 The platform implements multiple layers of reliability:
 
-1. **Multi-Provider Support**: Primary Mailgun, backup Mailgun, SendGrid, and SMTP fallback
+1. **Multi-Provider Support**: Primary Brevo, optional backup Brevo key, and SMTP fallback
 2. **Automatic Retry**: Failed emails are automatically retried up to 3 times
 3. **Load Balancing**: Round-robin distribution across multiple providers
 4. **Failover Protection**: If one provider fails, the system automatically switches to the next

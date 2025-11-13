@@ -25,8 +25,7 @@ try {
 console.log('\n✅ Environment setup complete!');
 console.log('\n📋 Next steps:');
 console.log('   1. Edit backend/.env and add your:');
-console.log('      - MAILGUN_API_KEY (get from https://www.mailgun.com/)');
-console.log('      - MAILGUN_DOMAIN (your verified Mailgun domain)');
+console.log('      - BREVO_API_KEY (get from https://www.brevo.com/)');
 console.log('      - MONGODB_URI (MongoDB connection string)');
 console.log('      - REDIS credentials (if using Redis Cloud)');
 console.log('   2. Make sure MongoDB and Redis are running');

@@ -6,7 +6,7 @@ const socketIo = require('socket.io');
 require('dotenv').config();
 
 // Validate required environment variables
-const jwtSecret = process.env.JWT_SECRET?.trim();
+const jwtSecret = process.env.JWT_SECRET ? process.env.JWT_SECRET.trim() : null;
 
 if (!jwtSecret) {
   console.error('❌ ERROR: JWT_SECRET is not set in environment variables!');
@@ -31,9 +31,9 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
-  }
+    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+  },
 });
 
 // Middleware
@@ -41,11 +41,18 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB Connection (no deprecated driver options)
-mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://anand193376_db_user:6h0nTV7TOPzJLWeG@cluster0.e1lbmjq.mongodb.net/email-automation
-')
-.then(() => console.log('✅ MongoDB Connected'))
-.catch(err => console.error('❌ MongoDB Connection Error:', err));
+// MongoDB Connection
+mongoose
+  .connect(
+    process.env.MONGODB_URI ||
+      'mongodb+srv://anand193376_db_user:6h0nTV7TOPzJLWeG@cluster0.e1lbmjq.mongodb.net/email-automation',
+    {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    }
+  )
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch((err) => console.error('❌ MongoDB Connection Error:', err));
 
 // Socket.io for real-time updates
 io.on('connection', (socket) => {
@@ -54,7 +61,7 @@ io.on('connection', (socket) => {
   });
 });
 
-// Make io available to routes and globally for queue service
+// Make io available to routes and globally
 app.set('io', io);
 global.io = io;
 
@@ -87,4 +94,3 @@ process.on('SIGTERM', () => {
     console.log('Process terminated');
   });
 });
-

@@ -42,7 +42,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // MongoDB Connection (no deprecated driver options)
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/email_automation')
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://anand193376_db_user:6h0nTV7TOPzJLWeG@cluster0.e1lbmjq.mongodb.net/email-automation
+')
 .then(() => console.log('✅ MongoDB Connected'))
 .catch(err => console.error('❌ MongoDB Connection Error:', err));
 

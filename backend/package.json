@@ -8,9 +8,7 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
-    "@getbrevo/brevo": "^3.0.1",
     "bcryptjs": "^2.4.3",
-    "brevo": "^1.0.0",
     "bull": "^4.12.2",
     "cors": "^2.8.5",
     "csv-parser": "^3.0.0",
@@ -23,6 +21,7 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.7",
+    "postmark": "^3.11.0",
     "redis": "^4.6.11",
     "socket.io": "^4.7.2",
     "xlsx": "^0.18.5"

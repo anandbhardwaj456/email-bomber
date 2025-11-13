@@ -40,14 +40,14 @@ MONGODB_URI=mongodb://localhost:27017/email_automation
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/email_automation
 ```
 
-### 2. Brevo API (REQUIRED for sending emails)
+### 2. SMTP (Required for sending emails)
 
-1. Sign up at https://www.brevo.com/
-2. Verify and warm up your sending domain
-3. Generate an API key from the Brevo dashboard
-4. Update `.env`:
+Use your email provider's SMTP credentials (Gmail, custom domain, transactional email service). Update `.env`:
 ```env
-BREVO_API_KEY=your_actual_api_key_here
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your_email@example.com
+SMTP_PASS=your_app_password
 ```
 
 ### 3. Redis (Required for queue system)
@@ -66,11 +66,9 @@ REDIS_PORT=12345
 REDIS_PASSWORD=your_redis_password
 ```
 
-### 4. Optional: Backup Email Providers
+### 4. Optional
 
-For failover protection, you can add:
-- **SMTP**: Configure SMTP settings (Gmail, etc.)
-- **Backup Brevo key**: Add a second Brevo API key
+You can tune SMTP pool settings via environment variables in code (e.g., `SMTP_MAX_CONNECTIONS`, `SMTP_MAX_MESSAGES`).
 
 ## Testing Your Setup
 
@@ -115,10 +113,10 @@ For failover protection, you can add:
 - Verify host and port
 - Check password (if using Redis Cloud)
 
-### Brevo Error
-- Verify API key is correct
-- Check domain is verified and warmed up
-- Make sure you're not in sandbox mode (or use sandbox domain)
+### SMTP Error
+- Verify SMTP credentials are correct
+- Ensure app password is enabled (e.g., Gmail)
+- Check provider SMTP limits and security settings
 
 ## Need Help?
 

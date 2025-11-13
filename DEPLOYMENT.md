@@ -7,7 +7,7 @@ This guide covers deploying the Email Automation Platform to production.
 - Node.js 16+ installed
 - MongoDB Atlas account (or self-hosted MongoDB)
 - Redis Cloud account (or self-hosted Redis)
-- Brevo account with API key
+- SMTP credentials from your email provider
 - Domain name (optional but recommended)
 
 ## Backend Deployment
@@ -29,7 +29,10 @@ This guide covers deploying the Email Automation Platform to production.
    REDIS_HOST=your_redis_host
    REDIS_PORT=6379
    JWT_SECRET=your_secure_jwt_secret
-   BREVO_API_KEY=your_brevo_api_key
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=your_email@example.com
+   SMTP_PASS=your_app_password
    ```
 
 ### Option 2: AWS EC2
@@ -161,20 +164,9 @@ This guide covers deploying the Email Automation Platform to production.
 
 ## Email Provider Setup
 
-### Brevo
+### SMTP (Nodemailer)
 
-1. **Sign up** for a Brevo account
-2. **Verify** and warm up your sending domain
-3. **Generate an API key** from the Brevo dashboard
-4. **Set environment variables**:
-   ```
-   BREVO_API_KEY=your_api_key
-   BREVO_API_KEY_BACKUP=optional_second_key
-   ```
-
-### SMTP (Fallback)
-
-1. **Use Gmail SMTP** or your email provider
+1. **Use Gmail SMTP** or your email provider (or a transactional email service exposing SMTP)
 2. **Set environment variables**:
    ```
    SMTP_HOST=smtp.gmail.com
@@ -260,9 +252,9 @@ This guide covers deploying the Email Automation Platform to production.
    - Verify credentials
 
 3. **Email Sending Failed**:
-   - Check Brevo API key
-   - Verify domain verification
-   - Check rate limits
+   - Verify SMTP credentials (username/password)
+   - Ensure app passwords are enabled if required (e.g., Gmail)
+   - Check provider SMTP limits and allowlist settings
 
 4. **Socket.io Connection Issues**:
    - Verify CORS settings

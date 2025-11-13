@@ -30,8 +30,7 @@ A high-performance bulk email automation platform built with MERN stack (MongoDB
 - MongoDB (Mongoose)
 - Redis + Bull (Queue System)
 - Socket.io (WebSocket)
-- Brevo API (Primary Email Provider)
-- Nodemailer (SMTP Fallback)
+- Nodemailer (SMTP)
 - JWT Authentication
 
 ## Installation
@@ -72,13 +71,7 @@ REDIS_PORT=6379
 JWT_SECRET=your_jwt_secret_key_here
 JWT_EXPIRE=7d
 
-# Brevo (Primary)
-BREVO_API_KEY=your_brevo_api_key
-
-# Brevo Backup (for failover)
-BREVO_API_KEY_BACKUP=your_backup_brevo_api_key
-
-# SMTP (Fallback)
+# SMTP
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=your_smtp_user
@@ -163,11 +156,9 @@ email_bomber/
 
 The platform implements multiple layers of reliability:
 
-1. **Multi-Provider Support**: Primary Brevo, optional backup Brevo key, and SMTP fallback
+1. **Robust Delivery**: SMTP with pooling and retry logic
 2. **Automatic Retry**: Failed emails are automatically retried up to 3 times
-3. **Load Balancing**: Round-robin distribution across multiple providers
-4. **Failover Protection**: If one provider fails, the system automatically switches to the next
-5. **Error Logging**: Comprehensive error tracking for every failed email
+3. **Error Logging**: Comprehensive error tracking for every failed email
 
 ### High-Speed Sending
 

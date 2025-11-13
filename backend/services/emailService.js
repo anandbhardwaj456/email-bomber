@@ -1,5 +1,5 @@
-const Brevo = require('@getbrevo/brevo');
 const nodemailer = require('nodemailer');
+const postmark = require('postmark');
 const fs = require('fs');
 const path = require('path');
 
@@ -18,21 +18,13 @@ class EmailService {
   }
 
   initializeProviders() {
-    // Primary Brevo
-    if (process.env.BREVO_API_KEY) {
+    // Postmark (HTTP API) - Primary if configured
+    if (process.env.POSTMARK_API_TOKEN) {
+      const client = new postmark.ServerClient(process.env.POSTMARK_API_TOKEN);
       this.providers.push({
-        name: 'brevo',
-        instance: this.createBrevoClient(process.env.BREVO_API_KEY),
+        name: 'postmark',
+        instance: client,
         priority: 1
-      });
-    }
-
-    // Backup Brevo
-    if (process.env.BREVO_API_KEY_BACKUP) {
-      this.providers.push({
-        name: 'brevo-backup',
-        instance: this.createBrevoClient(process.env.BREVO_API_KEY_BACKUP),
-        priority: 2
       });
     }
 
@@ -58,7 +50,7 @@ class EmailService {
       this.providers.push({
         name: 'smtp',
         instance: transporter,
-        priority: 3
+        priority: 2
       });
     }
 
@@ -77,14 +69,45 @@ class EmailService {
     return provider;
   }
 
-  createBrevoClient(apiKey) {
-    const apiInstance = new Brevo.TransactionalEmailsApi();
-    apiInstance.setApiKey(
-      Brevo.TransactionalEmailsApiApiKeys.apiKey,
-      apiKey
-    );
-    return apiInstance;
-  }  
+  // Send using Postmark HTTP API
+  async sendWithPostmark(pmClient, emailData) {
+    const fromParsed = this.parseEmailAddress(emailData.from, emailData.fromName);
+    const recipients = Array.isArray(emailData.to) ? emailData.to : [emailData.to];
+
+    const toList = recipients
+      .map((r) => {
+        const p = this.parseEmailAddress(r);
+        return p.name ? `${p.name} <${p.email}>` : p.email;
+      })
+      .join(', ');
+
+    let attachments;
+    if (emailData.attachments && emailData.attachments.length > 0) {
+      attachments = await Promise.all(
+        emailData.attachments.map(async (att) => {
+          const filePath = att.path;
+          const buffer = await fs.promises.readFile(filePath);
+          return {
+            Name: att.filename || path.basename(filePath),
+            Content: buffer.toString('base64')
+          };
+        })
+      );
+    }
+
+    const payload = {
+      From: fromParsed.name ? `${fromParsed.name} <${fromParsed.email}>` : fromParsed.email,
+      To: toList,
+      Subject: emailData.subject,
+      HtmlBody: emailData.html,
+      TextBody: emailData.text,
+      ReplyTo: emailData.replyTo || fromParsed.email,
+      Attachments: attachments
+    };
+
+    const res = await pmClient.sendEmail(payload);
+    return { messageId: res.MessageID || res.MessageId || res.MessageID?.toString?.(), raw: res };
+  }
 
   parseEmailAddress(address, fallbackName) {
     if (!address) {
@@ -115,58 +138,7 @@ class EmailService {
     };
   }
 
-  async sendWithBrevo(brevoClient, emailData) {
-    const sendEmail = new Brevo.SendSmtpEmail();
-
-    const fromParsed = this.parseEmailAddress(emailData.from, emailData.fromName);
-    sendEmail.sender = {
-      email: fromParsed.email,
-      name: fromParsed.name
-    };
-
-    const recipients = Array.isArray(emailData.to) ? emailData.to : [emailData.to];
-    sendEmail.to = recipients.map((recipient) => {
-      const parsed = this.parseEmailAddress(recipient);
-      return {
-        email: parsed.email,
-        name: parsed.name
-      };
-    });
-
-    sendEmail.subject = emailData.subject;
-
-    if (emailData.html) {
-      sendEmail.htmlContent = emailData.html;
-    }
-
-    if (emailData.text) {
-      sendEmail.textContent = emailData.text;
-    }
-
-    const replyToAddress = emailData.replyTo || fromParsed.email;
-    if (replyToAddress) {
-      const parsedReply = this.parseEmailAddress(replyToAddress);
-      sendEmail.replyTo = {
-        email: parsedReply.email,
-        name: parsedReply.name
-      };
-    }
-
-    if (emailData.attachments && emailData.attachments.length > 0) {
-      sendEmail.attachment = await Promise.all(
-        emailData.attachments.map(async (att) => {
-          const filePath = att.path;
-          const buffer = await fs.promises.readFile(filePath);
-          return {
-            name: att.filename || path.basename(filePath),
-            content: buffer.toString('base64')
-          };
-        })
-      );
-    }
-
-    return await brevoClient.sendTransacEmail(sendEmail);
-  }
+  
 
   async sendWithSMTP(transporter, emailData) {
     const mailOptions = {
@@ -196,9 +168,9 @@ class EmailService {
       for (const provider of providersToTry) {
         try {
           let result;
-
-          if (provider.name === 'brevo' || provider.name === 'brevo-backup') {
-            result = await this.sendWithBrevo(provider.instance, emailData);
+          if (provider.name === 'postmark') {
+            const pmResult = await this.sendWithPostmark(provider.instance, emailData);
+            result = { messageId: pmResult.messageId, messageIds: [pmResult.messageId], raw: pmResult.raw };
           } else if (provider.name === 'smtp') {
             result = await this.sendWithSMTP(provider.instance, emailData);
           }

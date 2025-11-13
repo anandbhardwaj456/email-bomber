@@ -24,11 +24,7 @@
    
    - `JWT_SECRET` - A random secret string for JWT tokens (generate a strong random string)
    
-   - `BREVO_API_KEY` - Your Brevo API key
-   
-   ### Optional Variables (for failover):
-   - `BREVO_API_KEY_BACKUP` - Backup Brevo API key
-   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` - SMTP fallback
+   - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` - SMTP credentials for Nodemailer
 
    ### Redis (Required for queue system):
    - `REDIS_HOST` - Redis server host (default: localhost)
@@ -73,12 +69,11 @@
    REACT_APP_SOCKET_URL=http://localhost:5000
    ```
 
-## Getting API Keys
+## Getting Credentials
 
-### Brevo:
-1. Sign up at https://www.brevo.com/
-2. Verify and warm up your domain
-3. Generate an API key from your Brevo dashboard
+### SMTP:
+1. Use your email provider's SMTP credentials (e.g., Gmail, custom domain, transactional email service)
+2. Ensure app passwords or SMTP access is enabled as required by the provider
 
 ### MongoDB Atlas (Cloud):
 1. Sign up at https://www.mongodb.com/cloud/atlas

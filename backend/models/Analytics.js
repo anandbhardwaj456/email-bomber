@@ -25,7 +25,7 @@ const analyticsSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['brevo', 'brevo-backup', 'smtp']
+    enum: ['postmark', 'smtp']
   },
   metadata: {
     type: Map,

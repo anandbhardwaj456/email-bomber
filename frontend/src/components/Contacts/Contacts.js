@@ -55,6 +55,21 @@ const Contacts = () => {
     }
   };
 
+  const handleDeleteAll = async () => {
+    if (!window.confirm('This will permanently delete all contacts. Continue?')) {
+      return;
+    }
+
+    try {
+      await axios.delete(`${API_URL}/contacts`);
+      toast.success('All contacts deleted');
+      setPage(1);
+      setRefresh((prev) => prev + 1);
+    } catch (error) {
+      toast.error('Failed to delete all contacts');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8 flex justify-between items-center">
@@ -62,7 +77,15 @@ const Contacts = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Contacts</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">Manage your email contacts</p>
         </div>
-        <ContactUpload onUpload={() => setRefresh((prev) => prev + 1)} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleDeleteAll}
+            className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            Delete All
+          </button>
+          <ContactUpload onUpload={() => setRefresh((prev) => prev + 1)} />
+        </div>
       </div>
 
       {/* Stats */}

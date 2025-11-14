@@ -173,5 +173,17 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// @route   DELETE /api/contacts
+// @desc    Delete all contacts for the authenticated user
+// @access  Private
+router.delete('/', async (req, res) => {
+  try {
+    const result = await Contact.deleteMany({ userId: req.user._id });
+    return res.json({ message: 'All contacts deleted successfully', deleted: result.deletedCount || 0 });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+});
+
 module.exports = router;
 

@@ -35,8 +35,8 @@ const jobSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['postmark', 'smtp'],
-    default: 'postmark'
+    enum: ['smtp'],
+    default: 'smtp'
   },
   errorLog: [{
     email: String,

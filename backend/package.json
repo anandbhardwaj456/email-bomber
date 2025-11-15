@@ -21,7 +21,6 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.7",
-    "postmark": "^3.11.0",
     "redis": "^4.6.11",
     "socket.io": "^4.7.2",
     "xlsx": "^0.18.5"

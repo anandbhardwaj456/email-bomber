@@ -1,5 +1,4 @@
 const nodemailer = require('nodemailer');
-const postmark = require('postmark');
 const fs = require('fs');
 const path = require('path');
 
@@ -18,17 +17,7 @@ class EmailService {
   }
 
   initializeProviders() {
-    // Postmark (HTTP API) - Primary if configured
-    if (process.env.POSTMARK_API_TOKEN) {
-      const client = new postmark.ServerClient(process.env.POSTMARK_API_TOKEN);
-      this.providers.push({
-        name: 'postmark',
-        instance: client,
-        priority: 1
-      });
-    }
-
-    // SMTP Fallback (with pooling for high throughput)
+    // SMTP (with pooling for high throughput)
     if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -50,7 +39,7 @@ class EmailService {
       this.providers.push({
         name: 'smtp',
         instance: transporter,
-        priority: 2
+        priority: 1
       });
     }
 
@@ -67,46 +56,6 @@ class EmailService {
     const provider = this.providers[this.currentProviderIndex];
     this.currentProviderIndex = (this.currentProviderIndex + 1) % this.providers.length;
     return provider;
-  }
-
-  // Send using Postmark HTTP API
-  async sendWithPostmark(pmClient, emailData) {
-    const fromParsed = this.parseEmailAddress(emailData.from, emailData.fromName);
-    const recipients = Array.isArray(emailData.to) ? emailData.to : [emailData.to];
-
-    const toList = recipients
-      .map((r) => {
-        const p = this.parseEmailAddress(r);
-        return p.name ? `${p.name} <${p.email}>` : p.email;
-      })
-      .join(', ');
-
-    let attachments;
-    if (emailData.attachments && emailData.attachments.length > 0) {
-      attachments = await Promise.all(
-        emailData.attachments.map(async (att) => {
-          const filePath = att.path;
-          const buffer = await fs.promises.readFile(filePath);
-          return {
-            Name: att.filename || path.basename(filePath),
-            Content: buffer.toString('base64')
-          };
-        })
-      );
-    }
-
-    const payload = {
-      From: fromParsed.name ? `${fromParsed.name} <${fromParsed.email}>` : fromParsed.email,
-      To: toList,
-      Subject: emailData.subject,
-      HtmlBody: emailData.html,
-      TextBody: emailData.text,
-      ReplyTo: emailData.replyTo || fromParsed.email,
-      Attachments: attachments
-    };
-
-    const res = await pmClient.sendEmail(payload);
-    return { messageId: res.MessageID || res.MessageId || res.MessageID?.toString?.(), raw: res };
   }
 
   parseEmailAddress(address, fallbackName) {
@@ -168,10 +117,7 @@ class EmailService {
       for (const provider of providersToTry) {
         try {
           let result;
-          if (provider.name === 'postmark') {
-            const pmResult = await this.sendWithPostmark(provider.instance, emailData);
-            result = { messageId: pmResult.messageId, messageIds: [pmResult.messageId], raw: pmResult.raw };
-          } else if (provider.name === 'smtp') {
+          if (provider.name === 'smtp') {
             result = await this.sendWithSMTP(provider.instance, emailData);
           }
 

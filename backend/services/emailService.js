@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+const postmark = require('postmark');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,51 +11,25 @@ const logger = {
 
 class EmailService {
   constructor() {
-    this.providers = [];
-    this.currentProviderIndex = 0;
-    this.initializeProviders();
-  }
+    const apiKey = process.env.POSTMARK_API_KEY || process.env.POSTMARK_SERVER_TOKEN;
 
-  initializeProviders() {
-    // SMTP (with pooling for high throughput)
-    if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_PORT === '465',
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        },
-        // Performance settings
-        pool: true,
-        maxConnections: parseInt(process.env.SMTP_MAX_CONNECTIONS || '10'),
-        maxMessages: parseInt(process.env.SMTP_MAX_MESSAGES || '100'),
-        // Optional soft rate limiting for providers that require it
-        rateDelta: parseInt(process.env.SMTP_RATE_DELTA || '1000'), // window in ms
-        rateLimit: parseInt(process.env.SMTP_RATE_LIMIT || '100')   // msgs per window
-      });
+    // Debug logging for env visibility (can be removed later)
+    logger.info(
+      'Postmark env lengths:',
+      'POSTMARK_API_KEY =',
+      process.env.POSTMARK_API_KEY ? process.env.POSTMARK_API_KEY.length : 0,
+      'POSTMARK_SERVER_TOKEN =',
+      process.env.POSTMARK_SERVER_TOKEN ? process.env.POSTMARK_SERVER_TOKEN.length : 0
+    );
 
-      this.providers.push({
-        name: 'smtp',
-        instance: transporter,
-        priority: 1
-      });
+    if (!apiKey) {
+      logger.error('POSTMARK_API_KEY / POSTMARK_SERVER_TOKEN is not set. Email sending will fail.');
+      this.client = null;
+      return;
     }
 
-    // Sort by priority
-    this.providers.sort((a, b) => a.priority - b.priority);
-    logger.info(`Initialized ${this.providers.length} email providers`);
-  }
-
-  getNextProvider() {
-    if (this.providers.length === 0) {
-      throw new Error('No email providers configured');
-    }
-
-    const provider = this.providers[this.currentProviderIndex];
-    this.currentProviderIndex = (this.currentProviderIndex + 1) % this.providers.length;
-    return provider;
+    // Initialize Postmark client only when a key is present
+    this.client = new postmark.ServerClient(apiKey);
   }
 
   parseEmailAddress(address, fallbackName) {
@@ -87,75 +61,92 @@ class EmailService {
     };
   }
 
-  
-
-  async sendWithSMTP(transporter, emailData) {
-    const mailOptions = {
-      from: emailData.from,
-      to: emailData.to,
-      subject: emailData.subject,
-      text: emailData.text,
-      html: emailData.html,
-      replyTo: emailData.replyTo || emailData.from
-    };
-
-    if (emailData.attachments && emailData.attachments.length > 0) {
-      mailOptions.attachments = emailData.attachments.map(att => ({
-        filename: att.filename,
-        path: att.path
-      }));
-    }
-
-    return await transporter.sendMail(mailOptions);
-  }
-
   async sendEmail(emailData, maxRetries = 3) {
     let lastError = null;
-    const providersToTry = [...this.providers];
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      for (const provider of providersToTry) {
-        try {
-          let result;
-          if (provider.name === 'smtp') {
-            result = await this.sendWithSMTP(provider.instance, emailData);
+      try {
+        // Ensure client is initialized with the latest env value if not already
+        if (!this.client) {
+          const apiKey = process.env.POSTMARK_API_KEY || process.env.POSTMARK_SERVER_TOKEN;
+          if (!apiKey) {
+            throw new Error('Postmark API key is not configured in environment variables');
           }
-
-          logger.info(`Email sent successfully via ${provider.name}`, {
-            to: emailData.to,
-            provider: provider.name,
-            attempt: attempt + 1
-          });
-
-          return {
-            success: true,
-            provider: provider.name,
-            messageId: result?.messageId || result?.messageIds?.[0] || 'unknown',
-            result
-          };
-        } catch (error) {
-          lastError = error;
-          logger.error(`Failed to send email via ${provider.name}`, {
-            to: emailData.to,
-            provider: provider.name,
-            error: error.message,
-            attempt: attempt + 1
-          });
-
-          // If this is not the last provider, try next one
-          if (providersToTry.indexOf(provider) < providersToTry.length - 1) {
-            continue;
-          }
+          this.client = new postmark.ServerClient(apiKey);
         }
+
+        const fromParsed = this.parseEmailAddress(
+          emailData.from || process.env.EMAIL_FROM_ADDRESS,
+          process.env.EMAIL_FROM_NAME
+        );
+
+        const recipients = Array.isArray(emailData.to) ? emailData.to : [emailData.to];
+        const to = recipients.map((r) => {
+          const parsed = this.parseEmailAddress(r);
+          return {
+            email: parsed.email,
+            name: parsed.name
+          };
+        });
+
+        const replyToEmail = emailData.replyTo || fromParsed.email;
+
+        // Postmark payload format
+        const payload = {
+          From: fromParsed.name
+            ? `${fromParsed.name} <${fromParsed.email}>`
+            : fromParsed.email,
+          To: to
+            .map((r) => (r.name ? `${r.name} <${r.email}>` : r.email))
+            .join(', '),
+          Subject: emailData.subject,
+          HtmlBody: emailData.html || undefined,
+          TextBody: emailData.text || undefined,
+          ReplyTo: replyToEmail
+        };
+
+        if (emailData.attachments && emailData.attachments.length > 0) {
+          payload.Attachments = await Promise.all(
+            emailData.attachments.map(async (att) => {
+              const filePath = att.path;
+              const buffer = await fs.promises.readFile(filePath);
+              return {
+                Name: att.filename || path.basename(filePath),
+                Content: buffer.toString('base64')
+              };
+            })
+          );
+        }
+
+        const result = await this.client.sendEmail(payload);
+
+        logger.info('Email sent successfully via Postmark', {
+          to: emailData.to,
+          provider: 'postmark',
+          attempt: attempt + 1
+        });
+
+        return {
+          success: true,
+          provider: 'postmark',
+          messageId: result?.MessageID || result?.MessageId || 'unknown',
+          result
+        };
+      } catch (error) {
+        lastError = error;
+        logger.error('Failed to send email via Postmark', {
+          to: emailData.to,
+          provider: 'postmark',
+          error: error.message,
+          attempt: attempt + 1
+        });
       }
 
-      // If all providers failed, wait before retry
       if (attempt < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
       }
     }
 
-    // All retries exhausted
     logger.error('All email providers failed after retries', {
       to: emailData.to,
       error: lastError?.message
@@ -170,4 +161,3 @@ class EmailService {
 }
 
 module.exports = new EmailService();
-

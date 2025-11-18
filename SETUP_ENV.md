@@ -58,7 +58,7 @@
    PORT=5000
    MONGODB_URI=mongodb://localhost:27017/email_automation
    JWT_SECRET=your_random_secret_here
-   BREVO_API_KEY=your_brevo_api_key
+   POSTMARK_API_KEY=your_postmark_server_token
    REDIS_HOST=localhost
    REDIS_PORT=6379
    ```
